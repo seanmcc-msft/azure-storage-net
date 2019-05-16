@@ -167,10 +167,18 @@ namespace Microsoft.Azure.Storage.Shared.Protocol
 
         internal static string GetHeader(HttpResponseMessage response, string headerName)
         {
-            return 
-                response.Content.Headers.Contains(headerName) ? response.Content.Headers.GetValues(headerName).First()
-                : response.Headers.Contains(headerName) ? response.Headers.GetValues(headerName).First()
-                : null;
+            if (response.Content != null && response.Content.Headers.Contains(headerName))
+            {
+                return response.Content.Headers.GetValues(headerName).First();
+            }
+            else if (response.Headers.Contains(headerName))
+            {
+                return response.Headers.GetValues(headerName).First();
+            }
+            else
+            {
+                return null;
+            }
         }
 
         internal static List<string> GetAllHeaders(HttpResponseMessage response)

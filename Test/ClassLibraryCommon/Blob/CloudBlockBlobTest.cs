@@ -28,6 +28,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Azure.Storage.Common.Blob;
+using System.Reflection;
 
 namespace Microsoft.Azure.Storage.Blob
 {
@@ -4719,6 +4721,279 @@ namespace Microsoft.Azure.Storage.Blob
                 container.DeleteAsync().Wait();
             }
         }
+
+        [TestMethod]
+        [Description("Test ADLS Gen 2 Move to non-existant destination")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public void CloudBlockADLSMoveMin()
+        {
+            // Arrange
+            CloudBlobClient blobClient = GenerateCloudBlobClient();
+            CloudBlobContainer blobContainer = blobClient.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                blobContainer.CreateIfNotExists();
+                CloudBlockBlob sourceBlockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+                sourceBlockBlob.UploadText("Initializing Block Blob");
+                CloudBlockBlob destBlockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+
+                // Act
+                sourceBlockBlob.Move(destBlockBlob.Uri);
+            }
+            finally
+            {
+                blobContainer.DeleteIfExists();
+            }
+        }
+
+        [TestMethod]
+        [Description("Test ADLS Gen 2 Move to existing destination with all parameters")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public void CloudBlockADLSMoveMax()
+        {
+            // Arrange
+            CloudBlobClient blobClient = GenerateCloudBlobClient();
+            CloudBlobContainer blobContainer = blobClient.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                blobContainer.CreateIfNotExists();
+                CloudBlockBlob sourceBlockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+                sourceBlockBlob.UploadText("Initializing Block Blob");
+                CloudBlockBlob destBlockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+                sourceBlockBlob.UploadText("Initializing Block Blob");
+                AccessCondition accessConditions = new AccessCondition()
+                {
+                    IfModifiedSinceTime = DateTimeOffset.Now.AddDays(-1),
+
+                };
+
+                // Act
+                sourceBlockBlob.Move(
+                    destUri: destBlockBlob.Uri,
+                    sourceAccessCondition: accessConditions,
+                    destAccessCondition: accessConditions,
+                    options: null,
+                    operationContext: null,
+                    umask: PathPermissions.ParseSymbolic("r--r--r--"),
+                    mode: PathRenameMode.Legacy);
+            }
+            finally
+            {
+                blobContainer.DeleteIfExists();
+            }
+        }
+
+        [TestMethod]
+        [Description("Test ADLS Gen 2 Fetch and Set access controls min")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public void CloudBlockADLSFetchSetAccessControlsMin()
+        {
+            // Arrange
+            CloudBlobClient blobClient = GenerateCloudBlobClient();
+            CloudBlobContainer blobContainer = blobClient.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                blobContainer.CreateIfNotExists();
+                CloudBlockBlob blockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+                blockBlob.UploadText("Initializing Block Blob");
+
+                // Act
+                blockBlob.FetchAccessControls();
+
+                // Assert
+                Assert.IsNotNull(blockBlob.PathProperties.Group);
+                Assert.IsNotNull(blockBlob.PathProperties.Owner);
+                Assert.IsNotNull(blockBlob.PathProperties.Permissions);
+                Assert.IsNotNull(blockBlob.PathProperties.ACL);
+
+                // Arrange
+                PathPermissions pathPermissions = PathPermissions.ParseSymbolic("rwxrwxrwx");
+                blockBlob.PathProperties.Permissions = pathPermissions;
+
+                // Act
+                blockBlob.SetPermissions();
+                blockBlob.FetchAccessControls();
+
+                // Assert
+                Assert.AreEqual(pathPermissions, blockBlob.PathProperties.Permissions);
+
+                // Arrange
+                PathAccessControlEntry userACL = new PathAccessControlEntry(AccessControlType.User, RolePermissions.ParseSymbolic("---", false));
+                PathAccessControlEntry groupACL = new PathAccessControlEntry(AccessControlType.Group, RolePermissions.ParseSymbolic("---", false));
+                PathAccessControlEntry otherACL = new PathAccessControlEntry(AccessControlType.Other, RolePermissions.ParseSymbolic("---", false));
+
+                blockBlob.PathProperties.ACL = new List<PathAccessControlEntry>()
+                {
+                    userACL,
+                    groupACL,
+                    otherACL
+                };
+
+                // Act
+                blockBlob.SetAcl();
+                blockBlob.FetchAccessControls();
+
+                // Assert
+                Assert.AreEqual(3, blockBlob.PathProperties.ACL.Count);
+                Assert.AreEqual(userACL, blockBlob.PathProperties.ACL[0]);
+                Assert.AreEqual(groupACL, blockBlob.PathProperties.ACL[1]);
+                Assert.AreEqual(otherACL, blockBlob.PathProperties.ACL[2]);
+            }
+            finally
+            {
+                blobContainer.DeleteIfExists();
+            }
+        }
+
+#if TASK
+
+        [TestMethod]
+        [Description("Test ADLS Gen 2 Move to non-existant destination")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlockADLSMoveMinTask()
+        {
+            // Arrange
+            CloudBlobClient blobClient = GenerateCloudBlobClient();
+            CloudBlobContainer blobContainer = blobClient.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                await blobContainer.CreateIfNotExistsAsync();
+                CloudBlockBlob sourceBlockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+                await sourceBlockBlob.UploadTextAsync("Initializing Block Blob");
+                CloudBlockBlob destBlockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+
+                // Act
+                await sourceBlockBlob.MoveAsync(destBlockBlob.Uri);
+            }
+            finally
+            {
+                await blobContainer.DeleteIfExistsAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("Test ADLS Gen 2 Move to existing destination with all parameters")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlockADLSMoveMaxTask()
+        {
+            // Arrange
+            CloudBlobClient blobClient = GenerateCloudBlobClient();
+            CloudBlobContainer blobContainer = blobClient.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                await blobContainer.CreateIfNotExistsAsync();
+                CloudBlockBlob sourceBlockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+                await sourceBlockBlob.UploadTextAsync("Initializing Block Blob");
+                CloudBlockBlob destBlockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+                await sourceBlockBlob.UploadTextAsync("Initializing Block Blob");
+                AccessCondition accessConditions = new AccessCondition()
+                {
+                    IfModifiedSinceTime = DateTimeOffset.Now.AddDays(-1),
+
+                };
+
+                // Act
+                await sourceBlockBlob.MoveAsync(
+                    destUri: destBlockBlob.Uri,
+                    sourceAccessCondition: accessConditions,
+                    destAccessCondition: accessConditions,
+                    options: null,
+                    operationContext: null,
+                    umask: PathPermissions.ParseSymbolic("r--r--r--"),
+                    mode: PathRenameMode.Legacy);
+            }
+            finally
+            {
+                await blobContainer.DeleteIfExistsAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("Test ADLS Gen 2 Fetch and Set access controls min")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlockADLSFetchSetAccessControlsMinAsync()
+        {
+            // Arrange
+            CloudBlobClient blobClient = GenerateCloudBlobClient();
+            CloudBlobContainer blobContainer = blobClient.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                await blobContainer.CreateIfNotExistsAsync();
+                CloudBlockBlob blockBlob = blobContainer.GetBlockBlobReference(GetRandomBlobName());
+                await blockBlob.UploadTextAsync("Initializing Block Blob");
+
+                // Act
+                await blockBlob.FetchAccessControlsAsync();
+
+                // Assert
+                Assert.IsNotNull(blockBlob.PathProperties.Group);
+                Assert.IsNotNull(blockBlob.PathProperties.Owner);
+                Assert.IsNotNull(blockBlob.PathProperties.Permissions);
+                Assert.IsNotNull(blockBlob.PathProperties.ACL);
+
+                // Arrange
+                PathPermissions pathPermissions = PathPermissions.ParseSymbolic("rwxrwxrwx");
+                blockBlob.PathProperties.Permissions = pathPermissions;
+
+                // Act
+                await blockBlob.SetPermissionsAsync();
+                await blockBlob.FetchAccessControlsAsync();
+
+                // Assert
+                Assert.AreEqual(pathPermissions, blockBlob.PathProperties.Permissions);
+
+                // Arrange
+                PathAccessControlEntry userACL = new PathAccessControlEntry(AccessControlType.User, RolePermissions.ParseSymbolic("---", false));
+                PathAccessControlEntry groupACL = new PathAccessControlEntry(AccessControlType.Group, RolePermissions.ParseSymbolic("---", false));
+                PathAccessControlEntry otherACL = new PathAccessControlEntry(AccessControlType.Other, RolePermissions.ParseSymbolic("---", false));
+
+                blockBlob.PathProperties.ACL = new List<PathAccessControlEntry>()
+                {
+                    userACL,
+                    groupACL,
+                    otherACL
+                };
+
+                // Act
+                await blockBlob.SetAclAsync();
+                await blockBlob.FetchAccessControlsAsync();
+
+                // Assert
+                Assert.AreEqual(3, blockBlob.PathProperties.ACL.Count);
+                Assert.AreEqual(userACL, blockBlob.PathProperties.ACL[0]);
+                Assert.AreEqual(groupACL, blockBlob.PathProperties.ACL[1]);
+                Assert.AreEqual(otherACL, blockBlob.PathProperties.ACL[2]);
+            }
+            finally
+            {
+                await blobContainer.DeleteIfExistsAsync();
+            }
+        }
+#endif
 
         private void DoTextUploadDownload(string text, bool checkDifferentEncoding, bool isAsync)
         {

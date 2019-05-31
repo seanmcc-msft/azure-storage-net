@@ -17,6 +17,7 @@
 namespace Microsoft.Azure.Storage.Blob
 {
     using Microsoft.Azure.Storage.Auth;
+    using Microsoft.Azure.Storage.Common.Blob;
     using Microsoft.Azure.Storage.Core;
     using Microsoft.Azure.Storage.Core.Auth;
     using Microsoft.Azure.Storage.Core.Util;

@@ -23,11 +23,14 @@ namespace Microsoft.Azure.Storage.Core
     internal class SR
     {
         public const string AbsoluteAddressNotPermitted = "Address '{0}' is an absolute address. Only relative addresses are permitted.";
+        public const string AccessControlEntryInvalidScope = "Scope must be default or otherwise omitted";
         public const string AccountNameMismatch = "Account names do not match.  First account name is {0}, second is {1}.";
         public const string ArgumentEmptyError = "The argument must not be empty string.";
         public const string ArgumentOutOfRangeError = "The argument is out of range. Value passed: {0}";
         public const string ArgumentTooLargeError = "The argument '{0}' is larger than maximum of '{1}'";
         public const string ArgumentTooSmallError = "The argument '{0}' is smaller than minimum of '{1}'";
+        public const string ArgumentFormatError = "The argument format is invalid";
+        public const string NullArguementError = "The argument is null";
         public const string AttemptedEdmTypeForTheProperty = "Attempting to deserialize '{0}' as type '{1}'";
         public const string BatchWithRetreiveContainsOtherOperations = "A batch transaction with a retrieve operation cannot contain any other operations.";
         public const string BatchExceededMaximumNumberOfOperations = "The maximum number of operations allowed in one batch has been exceeded.";
@@ -166,6 +169,7 @@ namespace Microsoft.Azure.Storage.Core
         public const string MultipleCredentialsProvided = "Cannot provide credentials as part of the address and as constructor parameter. Either pass in the address or use a different constructor.";
         public const string MultipleSnapshotTimesProvided = "Multiple different snapshot times provided as part of query '{0}' and as constructor parameter '{1}'.";
         public const string NegativeBytesRequestedInCopy = "Internal Error - negative copyLength requested when attempting to copy a stream.  CopyLength = {0}, totalBytes = {1}, total bytes recorded so far = {2}.";
+        public const string NullProperty = "Property {0} cannot be null.";
         public const string NoPropertyResolverAvailable = "No property resolver available. Deserializing the entity properties as strings.";
         public const string OffsetNotInRange = "The offset provided is out of range. The range must be between 0 and the length of the byte array.";
         public const string ODataReaderNotInCompletedState = "OData Reader state expected to be Completed state. Actual state: {0}.";
@@ -257,6 +261,7 @@ namespace Microsoft.Azure.Storage.Core
         public const string TraceUpload = "Writing request data.";
         public const string TraceUploadError = "Exception thrown while writing request data: {0}.";
         public const string UndefinedBlobType = "The blob type cannot be undefined.";
+        public const string UnidentifiedAccessControlType = "Unidentified AccessControlType found";
         public const string UnexpectedEDMType = "Unexpected EDM type from the Table Service: {0}.";
         public const string UnexpectedElement = "Unexpected Element '{0}'";
         public const string UnexpectedEmptyElement = "Unexpected Empty Element '{0}'";

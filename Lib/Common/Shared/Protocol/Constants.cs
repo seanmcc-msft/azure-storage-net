@@ -898,6 +898,81 @@ namespace Microsoft.Azure.Storage.Shared.Protocol
         public const string ErrorExceptionStackTrace = "StackTrace";
 
         /// <summary>
+        /// Resource URI parameter name for ADLS Gen 2
+        /// </summary>
+        public const string Resource = "resource";
+
+        /// <summary>
+        /// File resource URI parameter value for ADLS Gen 2
+        /// </summary>
+        public const string FileResource = "file";
+
+        /// <summary>
+        /// Directory resource URI parameter value for ADLS Gen 2
+        /// </summary>
+        public const string DirectoryResource = "directory";
+
+        /// <summary>
+        /// Continuation URI parameter name for ADLS Gen 2
+        /// </summary>
+        public const string Continuation = "continuation";
+
+        /// <summary>
+        /// Recursive URI parameter name for ADLS Gen 2
+        /// </summary>
+        public const string Recursive = "recursive";
+
+        /// <summary>
+        /// Mode URI parameter name for ADLS Gen 2
+        /// </summary>
+        public const string Mode = "mode";
+
+        /// <summary>
+        /// Action URI parameter name for ADLS Gen 2
+        /// </summary>
+        public const string Action = "action";
+
+        /// <summary>
+        /// Get access control URI parameter value for ADLS Gen 2
+        /// </summary>
+        public const string GetAccessControlAction = "getAccessControl";
+
+        /// <summary>
+        /// Set access control URI parameter value for ADLS Gen 2
+        /// </summary>
+        public const string SetAccessControlAction = "setAccessControl";
+
+        /// <summary>
+        /// Set properties URI parameter value for ADLS Gen 2
+        /// </summary>
+        public const string SetPropertiesAction = "setProperties";
+
+        /// <summary>
+        /// Upn URI parameter name for ADLS Gen 2
+        /// </summary>
+        public const string Upn = "upn";
+
+        /// <summary>
+        /// Position URI parameter name for ADLS Gen 2
+        /// </summary>
+        public const string Position = "position";
+
+        /// <summary>
+        /// Retain uncommitted data URI parameter name for ADLS Gen 2
+        /// </summary>
+        public const string RetainUncommittedData = "retainUncommittedData";
+
+        /// <summary>
+        /// Close URI parameter name for ADLS Gen 2
+        /// </summary>
+        public const string Close = "close";
+
+        /// <summary>
+        /// hdi_isfolder metadata key returned by the service.
+        /// </summary>
+        public const string Hdi_IsFolder = "hdi_isfolder";
+
+        /// <summary>
         /// Namespace of the entity container.
         /// </summary>
         internal const string EdmEntityTypeNamespaceName = "AzureTableStorage";
@@ -1180,6 +1255,11 @@ namespace Microsoft.Azure.Storage.Shared.Protocol
             /// Header that specifies file content MD5.
             /// </summary>
             public const string FileContentMD5Header = PrefixForStorageHeader + "content-md5";
+
+            /// <summary>
+            /// Header that specifies ADLS Gen 2 content MD5
+            /// </summary>
+            public const string ContentMD5Header = "Content-MD5";
 
             /// <summary>
             /// Header that specifies source content MD5.
@@ -1537,6 +1617,46 @@ namespace Microsoft.Azure.Storage.Shared.Protocol
             /// Header that specifies a continuation token. 
             /// </summary>
             public const string Marker = PrefixForStorageHeader + "marker";
+
+            /// <summary>
+            /// Header that specifies rename source for ADLS Gen 2.
+            /// </summary>
+            public const string RenameSource = PrefixForStorageHeader + "rename-source";
+
+            /// <summary>
+            /// Header that specifies properties for ADLS Gen 2.
+            /// </summary>
+            public const string Properties = PrefixForStorageHeader + "properties";
+
+            /// <summary>
+            /// Header that specifies permissions for ADLS Gen 2.
+            /// </summary>
+            public const string Permissions = PrefixForStorageHeader + "permissions";
+
+            /// <summary>
+            /// Header that specifies umask for ADLS Gen 2.
+            /// </summary>
+            public const string Umask = PrefixForStorageHeader + "umask";
+
+            /// <summary>
+            /// Header that specifies owner for ADLS Gen 2.
+            /// </summary>
+            public const string Owner = PrefixForStorageHeader + "owner";
+
+            /// <summary>
+            /// Header that specifies group for ADLS Gen 2.
+            /// </summary>
+            public const string Group = PrefixForStorageHeader + "group";
+
+            /// <summary>
+            /// Header that specifies ACL for ADLS Gen 2.
+            /// </summary>
+            public const string ACL = PrefixForStorageHeader + "acl";
+
+            /// <summary>
+            /// Header that specifies continuation token for ADLS Gen 2
+            /// </summary>
+            public const string Continuation = PrefixForStorageHeader + "continuation";
 
             /// <summary>
             /// The name of the SKU name header element.

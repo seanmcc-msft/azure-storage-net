@@ -17,9 +17,11 @@
 
 namespace Microsoft.Azure.Storage.Blob.Protocol
 {
+    using Microsoft.Azure.Storage.Common.Blob;
     using Microsoft.Azure.Storage.Core.Util;
     using Microsoft.Azure.Storage.Shared.Protocol;
     using System;
+    using System.Collections;
     using System.Collections.Generic;
     using System.Globalization;
     using System.Net.Http;
@@ -164,6 +166,36 @@ namespace Microsoft.Azure.Storage.Blob.Protocol
             }
 
             return properties;
+        }
+
+        /// <summary>
+        /// Parses BlobAccessControsl from a HttpResponseMessage object.
+        /// </summary>
+        /// <param name="response">A <see cref="HttpResponseMessage"/> object.</param>
+        /// <returns>A <see cref="BlobPathAccessControls"/> object.</returns>
+        public static BlobPathAccessControls ParseBlobAccessControls(HttpResponseMessage response)
+        {
+            CommonUtility.AssertNotNull("response", response);
+            BlobPathAccessControls accessControls = new BlobPathAccessControls()
+            {
+                Owner = response.Headers.GetHeaderSingleValueOrDefault(Constants.HeaderConstants.Owner),
+                Group = response.Headers.GetHeaderSingleValueOrDefault(Constants.HeaderConstants.Group),
+            };
+
+            string permissionsString = response.Headers.GetHeaderSingleValueOrDefault(Constants.HeaderConstants.Permissions);
+
+            if (permissionsString != null)
+            {
+                accessControls.Permissions = PathPermissions.ParseSymbolic(permissionsString);
+            }
+
+            if (response.Headers.Contains(Constants.HeaderConstants.ACL))
+            {
+                string aclString = response.Headers.GetHeaderSingleValueOrDefault(Constants.HeaderConstants.ACL);
+                accessControls.ACL = PathAccessControlEntry.ParseList(aclString);
+            }
+
+            return accessControls;
         }
 
         /// <summary>

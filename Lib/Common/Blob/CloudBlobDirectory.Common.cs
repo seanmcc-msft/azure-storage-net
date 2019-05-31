@@ -17,8 +17,11 @@
 
 namespace Microsoft.Azure.Storage.Blob
 {
+    using Microsoft.Azure.Storage.Common.Blob;
     using Microsoft.Azure.Storage.Core.Util;
+    using Microsoft.Azure.Storage.Shared.Protocol;
     using System;
+    using System.Collections.Generic;
 
     /// <summary>
     /// Represents a virtual directory of blobs on the client which emulates a hierarchical data store by using delimiter characters.
@@ -30,7 +33,8 @@ namespace Microsoft.Azure.Storage.Blob
         /// </summary>
         public CloudBlobDirectory()
         {
-
+            this.attributes = new BlobAttributes();
+            this.PathProperties = new BlobPathAccessControls();
         }
 
         /// <summary>
@@ -54,6 +58,8 @@ namespace Microsoft.Azure.Storage.Blob
             this.Container = container;
             this.Prefix = prefix;
             this.StorageUri = uri;
+            this.attributes = new BlobAttributes();
+            this.PathProperties = new BlobPathAccessControls();
         }
 
         /// <summary>
@@ -113,6 +119,40 @@ namespace Microsoft.Azure.Storage.Blob
         /// </summary>
         /// <value>A string containing the prefix.</value>
         public string Prefix { get; private set; }
+
+        /// <summary>
+        /// Stores the blob's attributes.
+        /// </summary>
+        internal readonly BlobAttributes attributes;
+
+        /// <summary>
+        /// Gets the blob's system properties.
+        /// </summary>
+        /// <value>A <see cref="BlobProperties"/> object.</value>
+        public BlobProperties Properties
+        {
+            get
+            {
+                return this.attributes.Properties;
+            }
+        }
+
+        /// <summary>
+        /// Gets the user-defined metadata for the blob.
+        /// </summary>
+        /// <value>An <see cref="IDictionary{TKey,TValue}"/> object containing the blob's metadata as a collection of name-value pairs.</value>
+        public IDictionary<string, string> Metadata
+        {
+            get
+            {
+                return this.attributes.Metadata;
+            }
+        }
+
+        /// <summary>
+        /// Gets the path properties.
+        /// </summary>
+        public BlobPathAccessControls PathProperties { get; internal set; }
 
         /// <summary>
         /// Gets a reference to a page blob in this virtual directory.

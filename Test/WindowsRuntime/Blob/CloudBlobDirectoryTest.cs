@@ -24,6 +24,8 @@ namespace Microsoft.Azure.Storage.Blob
     using System.Linq;
     using System.Net;
     using System.Threading.Tasks;
+    using Microsoft.Azure.Storage.Shared.Protocol;
+    using Microsoft.Azure.Storage.Common.Blob;
 
     [TestClass]
     public class CloudBlobDirectoryTest : BlobTestBase
@@ -520,6 +522,439 @@ namespace Microsoft.Azure.Storage.Blob
                 {
                     container.DeleteIfExistsAsync().Wait();
                 }
+            }
+        }
+
+        [TestMethod]
+        [Description("Create and Delete CloudBlobDirectory via ADLS")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryADLSCreateDeleteMinAsync()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                await container.CreateAsync();
+                CloudBlobDirectory dir = container.GetDirectoryReference("test");
+
+                // Act
+                await dir.CreateAsync(umask: PathPermissions.ParseSymbolic("r--r--r--"));
+
+                // Assert
+                Assert.IsNotNull(dir.Properties.ETag);
+
+                // Act
+                await dir.DeleteAsync();
+            }
+            finally
+            {
+                await container.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("Create CloudBlobDirectory via ADLS with metadata and properties")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryADLSCreateMetadataPropertiesTask()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                string metdataKey = "key";
+                string metadataValue = "value";
+                string cacheControl = "cacheControl";
+                string contentEncoding = "contentEncoding";
+                string contentLanguage = "contentLanguage";
+                string contentDisposition = "contentDisposition";
+
+                await container.CreateAsync();
+                CloudBlobDirectory dir = container.GetDirectoryReference("test");
+                dir.Metadata.Add(metdataKey, metadataValue);
+                dir.Properties.CacheControl = cacheControl;
+                dir.Properties.ContentEncoding = contentEncoding;
+                dir.Properties.ContentLanguage = contentLanguage;
+                dir.Properties.ContentDisposition = contentDisposition;
+
+                // Act
+                await dir.CreateAsync();
+
+                // Assert
+                Assert.IsNotNull(dir.Properties.ETag);
+
+                // Arrange
+                CloudBlobDirectory dir2 = container.GetDirectoryReference("test");
+
+                // Act
+                await dir2.FetchAttributesAsync();
+
+                // Assert
+                Assert.AreEqual(dir.Metadata[metdataKey], dir2.Metadata[metdataKey]);
+                Assert.AreEqual(cacheControl, dir2.Properties.CacheControl);
+                Assert.AreEqual(contentEncoding, dir2.Properties.ContentEncoding);
+                Assert.AreEqual(contentLanguage, dir2.Properties.ContentLanguage);
+                Assert.AreEqual(contentDisposition, dir2.Properties.ContentDisposition);
+            }
+            finally
+            {
+                await container.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("Delete CloudBlobDirectory via ADLS Recursive")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryADLSDeleteRecursiveAsync()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                await container.CreateAsync();
+                CloudBlobDirectory dir = container.GetDirectoryReference("test");
+                await dir.CreateAsync();
+                CloudBlockBlob blob = dir.GetBlockBlobReference("myBlob");
+                await blob.UploadTextAsync("Initializing Block Blob");
+                AccessCondition accessCondition = new AccessCondition
+                {
+                    IfModifiedSinceTime = DateTimeOffset.Now.AddDays(-1)
+                };
+
+                // Act
+                await dir.DeleteAsync(accessCondition: accessCondition);
+            }
+            finally
+            {
+                await container.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("Delete CloudBlobDirectory via ADLS Recursive")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryADLSDeleteRecursiveManyFilesAsync()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                await container.CreateAsync();
+                CloudBlobDirectory dir = container.GetDirectoryReference("test");
+                await dir.CreateAsync();
+
+                for (int i = 0; i < 250; i++)
+                {
+                    CloudBlobDirectory subDirectory = dir.GetDirectoryReference(i.ToString());
+                    await subDirectory.CreateAsync();
+                }
+
+                // Act
+                string continuationToken = null;
+                do
+                {
+                    continuationToken = await dir.DeleteAsync(continuation: continuationToken);
+                }
+                while (!string.IsNullOrEmpty(continuationToken));
+            }
+            finally
+            {
+                await container.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("Move a CloudBlobDirectory via ADLS")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryADLSMoveMinAsync()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                await container.CreateAsync();
+                CloudBlobDirectory dir = container.GetDirectoryReference("source");
+                await dir.CreateAsync();
+                Uri destination = container.GetDirectoryReference("destination").Uri;
+
+                // Act
+                await dir.MoveAsync(destination);
+            }
+            finally
+            {
+                await container.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("Test ADLS Gen 2 Move to existing destination with all parameters")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryADLSMoveMaxTask()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                await container.CreateAsync();
+                CloudBlobDirectory sourceDir = container.GetDirectoryReference("dir");
+                await sourceDir.CreateAsync();
+
+                CloudBlockBlob blob = sourceDir.GetBlockBlobReference("myBlob");
+                await blob.UploadTextAsync("Initializing Block Blob");
+
+                CloudBlobDirectory destDir = container.GetDirectoryReference("destination");
+                await destDir.CreateAsync();
+
+                AccessCondition accessCondition = new AccessCondition
+                {
+                    IfModifiedSinceTime = DateTimeOffset.Now.AddDays(-1)
+                };
+
+                // Act
+                await sourceDir.MoveAsync(
+                    destination: destDir.Uri,
+                    sourceAccessCondition: accessCondition,
+                    destAccessCondition: accessCondition,
+                    umask: PathPermissions.ParseSymbolic("r--r--r--"),
+                    mode: PathRenameMode.Legacy);
+            }
+            finally
+            {
+                await container.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("Delete CloudBlobDirectory via ADLS Recursive")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryADLSMoveRecursiveManyFilesTask()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                await container.CreateAsync();
+                CloudBlobDirectory sourceDir = container.GetDirectoryReference("dir");
+                await sourceDir.CreateAsync();
+
+                CloudBlobDirectory destDir = container.GetDirectoryReference("destination");
+                await destDir.CreateAsync();
+
+                for (int i = 0; i < 250; i++)
+                {
+                    CloudBlobDirectory subDirectory = sourceDir.GetDirectoryReference(i.ToString());
+                    await subDirectory.CreateAsync();
+                }
+
+                // Act
+                string continuationToken = null;
+                do
+                {
+                    continuationToken = await sourceDir.MoveAsync(destDir.Uri, continuation: continuationToken);
+                }
+                while (!string.IsNullOrEmpty(continuationToken));
+            }
+            finally
+            {
+                await container.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("CloudBlobDirectory fetch and set path properties via ADLS")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryADLSFetchSetAccessControlsMinTask()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                await container.CreateAsync();
+                CloudBlobDirectory dir = container.GetDirectoryReference("dir");
+                await dir.CreateAsync();
+
+                // Act
+                await dir.FetchAccessControlsAsync();
+
+                // Assert
+                Assert.IsNotNull(dir.PathProperties.Group);
+                Assert.IsNotNull(dir.PathProperties.Owner);
+                Assert.IsNotNull(dir.PathProperties.Permissions);
+                Assert.IsNotNull(dir.PathProperties.ACL);
+
+                // Arrange
+                PathPermissions pathPermissions = PathPermissions.ParseSymbolic("rwxrwxrwx");
+                dir.PathProperties.Permissions = pathPermissions;
+
+                // Act
+                await dir.SetPermissionsAsync();
+                await dir.FetchAccessControlsAsync();
+
+                // Assert
+                Assert.AreEqual(pathPermissions, dir.PathProperties.Permissions);
+
+                // Arrange
+                PathAccessControlEntry userACL = new PathAccessControlEntry(AccessControlType.User, RolePermissions.ParseSymbolic("---", false));
+                PathAccessControlEntry groupACL = new PathAccessControlEntry(AccessControlType.Group, RolePermissions.ParseSymbolic("---", false));
+                PathAccessControlEntry otherACL = new PathAccessControlEntry(AccessControlType.Other, RolePermissions.ParseSymbolic("---", false));
+
+                dir.PathProperties.ACL = new List<PathAccessControlEntry>()
+                {
+                    userACL,
+                    groupACL,
+                    otherACL
+                };
+
+                // Act
+                await dir.SetAclAsync();
+                await dir.FetchAccessControlsAsync();
+
+                // Assert
+                Assert.AreEqual(3, dir.PathProperties.ACL.Count);
+                Assert.AreEqual(userACL, dir.PathProperties.ACL[0]);
+                Assert.AreEqual(groupACL, dir.PathProperties.ACL[1]);
+                Assert.AreEqual(otherACL, dir.PathProperties.ACL[2]);
+            }
+            finally
+            {
+                await container.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("CloudBlobDirectory fetch and set properties via ADLS")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryADLSFetchSetPropertiesMinTask()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                await container.CreateAsync();
+                CloudBlobDirectory dir = container.GetDirectoryReference("dir");
+                await dir.CreateAsync();
+
+                // Act
+                await dir.FetchAttributesAsync();
+
+                // Assert
+                Assert.AreEqual(LeaseStatus.Unlocked, dir.Properties.LeaseStatus);
+                Assert.AreEqual(LeaseState.Available, dir.Properties.LeaseState);
+
+                // Arrange
+                dir.Metadata.Add("myKey", "myValue");
+
+                // Act
+                await dir.SetMetadataAsync();
+                await dir.FetchAttributesAsync();
+
+                // Assert
+                Assert.AreEqual(2, dir.Metadata.Count);
+                Assert.AreEqual("true", dir.Metadata[Constants.Hdi_IsFolder]);
+                Assert.AreEqual("myValue", dir.Metadata["myKey"]);
+
+                // Arrange
+                dir.Properties.ContentLanguage = "en-us";
+                dir.Properties.CacheControl = "cacheControl";
+                dir.Properties.ContentEncoding = "json";
+
+                // Act
+                await dir.SetPropertiesAsync();
+                await dir.FetchAttributesAsync();
+
+                // Assert
+                Assert.AreEqual("en-us", dir.Properties.ContentLanguage);
+                Assert.AreEqual("cacheControl", dir.Properties.CacheControl);
+                Assert.AreEqual("json", dir.Properties.ContentEncoding);
+            }
+            finally
+            {
+                await container.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        [Description("CloudBlobDirectory exists test")]
+        [TestCategory(ComponentCategory.Blob)]
+        [TestCategory(TestTypeCategory.UnitTest)]
+        [TestCategory(SmokeTestCategory.NonSmoke)]
+        [TestCategory(TenantTypeCategory.DevStore), TestCategory(TenantTypeCategory.DevFabric), TestCategory(TenantTypeCategory.Cloud)]
+        public async Task CloudBlobDirectoryExistsTask()
+        {
+            CloudBlobClient client = GenerateCloudBlobClient();
+            CloudBlobContainer container = client.GetContainerReference(GetRandomContainerName());
+
+            try
+            {
+                // Arrange
+                await container.CreateAsync();
+                CloudBlobDirectory dir = container.GetDirectoryReference("dir");
+
+                // Act
+                bool dirExists = await dir.ExistsAsync();
+
+                // Assert
+                Assert.IsFalse(dirExists);
+
+                // Arrange
+                await dir.CreateAsync();
+
+                // Act
+                dirExists = await dir.ExistsAsync();
+
+                // Assert
+                Assert.IsTrue(dirExists);
+                Assert.IsNotNull(dir.Properties.ETag);
+                Assert.AreEqual(LeaseStatus.Unlocked, dir.Properties.LeaseStatus);
+                Assert.AreEqual(LeaseState.Available, dir.Properties.LeaseState);
+            }
+            finally
+            {
+                await container.DeleteAsync();
             }
         }
     }

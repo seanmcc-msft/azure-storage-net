@@ -17,6 +17,7 @@
 
 namespace Microsoft.Azure.Storage.Blob.Protocol
 {
+    using Microsoft.Azure.Storage.Core;
     using Microsoft.Azure.Storage.Core.Auth;
     using Microsoft.Azure.Storage.Core.Util;
     using Microsoft.Azure.Storage.Shared.Protocol;
@@ -94,6 +95,79 @@ namespace Microsoft.Azure.Storage.Blob.Protocol
 
                 writer.WriteEndDocument();
             }
+        }
+
+        /// <summary>
+        /// Adds metadata in the format accepted by ADLSGen2 apis: " a comma-separated list of name and value pairs
+        /// "n1=v1, n2=v2, ...", where each value is a base64 encoded string. Note that the string may only contain ASCII
+        /// characters in the ISO-8859-1 character set."
+        /// </summary>
+        /// <param name="metadata">The metadata</param>
+        public static string MetadataAsPathProperties(IDictionary<string, string> metadata)
+        {
+            if (metadata == null || metadata.Count == 0)
+            {
+                return null;
+            }
+
+            StringBuilder sb = new StringBuilder();
+
+            foreach (KeyValuePair<string, string> entry in metadata)
+            {
+                CommonUtility.AssertNotNull("value", entry.Value);
+                if (string.IsNullOrWhiteSpace(entry.Value))
+                {
+                    throw new ArgumentException(SR.ArgumentEmptyError, entry.Value);
+                }
+
+                /*
+                The service has an internal base64 decode when metadata is copied from ADLS to Storage, so getMetadata
+                will work as normal. Doing this encoding for the customers preserves the existing behavior of
+                metadata.
+                 */
+                sb.Append(entry.Key).Append('=').Append(Convert.ToBase64String(Encoding.UTF8.GetBytes(entry.Value))).Append(",");
+            }
+
+            // Remove trailing comma
+            sb.Remove(sb.Length - 1, 1);
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Returns a new Uri with ".blob." replaced with ".dfs." in the host,
+        /// </summary>
+        /// <param name="uri">Inital Uri</param>
+        /// <returns>New Uri with host swapped</returns>
+        public static Uri SwapDfsEndpoint(Uri uri)
+        {
+            // Remove trailing delimier
+            uri = RemoveTrailingDelimiter(uri);
+
+            // Swap to dfs endpoint
+            string newHost = uri.Host.Replace(".blob.", ".dfs.");
+            UriBuilder uriBuilder = new UriBuilder(uri.Scheme, newHost, uri.Port, uri.PathAndQuery);
+            return uriBuilder.Uri;
+        }
+
+        /// <summary>
+        /// Trims the trailing '/' from a Uri
+        /// </summary>
+        /// <param name="uri"><see cref="Uri"/> to trim</param>
+        /// <returns></returns>
+        public static Uri RemoveTrailingDelimiter(Uri uri)
+        {
+            if(uri == null)
+            {
+                return null;
+            }
+
+            if (uri.ToString().EndsWith("/", StringComparison.Ordinal))
+            {
+                uri = new Uri(uri.ToString().Substring(0, uri.ToString().Length - 1));
+            }
+
+            return uri;
         }
     }
 }

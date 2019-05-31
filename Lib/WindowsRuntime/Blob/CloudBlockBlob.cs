@@ -1299,10 +1299,115 @@ namespace Microsoft.Azure.Storage.Blob
         }
 
         /// <summary>
+        /// Moves this CloudBlockBlob to a new location.
+        /// </summary>
+        /// <param name="destUri">A <see cref="Uri"/> specifying location to move CloudBlockBlob to.</param>
+        /// <param name="sourceAccessCondition">An <see cref="AccessCondition"/> object that represents the conditions on the source that must be met in order 
+        /// for the request to proceed. If <c>null</c>, no condition is used.</param>
+        /// <param name="destAccessCondition">An <see cref="AccessCondition"/> object that represents the conditions on the destination that must be met in order 
+        /// for the request to proceed. If <c>null</c>, no condition is used.</param>
+        /// <param name="options">A <see cref="BlobRequestOptions"/> object that specifies additional options for the request.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="umask">An optional <see cref="PathPermissions"/> object to specify umask</param>
+        /// <param name="mode">An optional <see cref="PathRenameMode"/> object to specify rename mode</param>
+        /// <param name="cancellationToken">A <see cref="CancellationToken"/> to observe while waiting for a task to complete.</param> 
+        [DoesServiceRequest]
+        public virtual Task MoveAsync(
+            Uri destUri,
+            AccessCondition sourceAccessCondition = null,
+            AccessCondition destAccessCondition = null,
+            BlobRequestOptions options = null,
+            OperationContext operationContext = null,
+            PathPermissions umask = null,
+            PathRenameMode? mode = null,
+            CancellationToken? cancellationToken = null)
+        {
+            BlobRequestOptions modifiedOptions = BlobRequestOptions.ApplyDefaults(options, BlobType.Unspecified, this.ServiceClient);
+            return Executor.ExecuteAsync(
+                this.MoveImp(destUri, sourceAccessCondition, destAccessCondition, modifiedOptions, mode, umask),
+                modifiedOptions.RetryPolicy,
+                operationContext,
+                cancellationToken ?? CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Fetches the access controls for this CloudBlockBlob.   Storage account must have hierarchical namespace enabled.
+        /// </summary>
+        /// <param name="options">A <see cref="BlobRequestOptions"/> object that specifies additional options for the request.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met in order 
+        /// for the request to proceed. If <c>null</c>, no condition is used.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="upn">If "true", the user identity values returned in the owner, group, and acl fields will be transformed from Azure 
+        /// Active Directory Object IDs to User Principal Names.</param>
+        /// <param name="cancellationToken">A <see cref="CancellationToken"/> to observe while waiting for a task to complete.</param> 
+        [DoesServiceRequest]
+        public virtual Task FetchAccessControlsAsync(
+            BlobRequestOptions options = null,
+            AccessCondition accessCondition = null,
+            OperationContext operationContext = null,
+            bool? upn = null,
+            CancellationToken? cancellationToken = null)
+        {
+            BlobRequestOptions modifiedOptions = BlobRequestOptions.ApplyDefaults(options, BlobType.BlockBlob, this.ServiceClient);
+            return Executor.ExecuteAsync(
+                this.FetchAccessControlsImp(modifiedOptions, accessCondition, upn),
+                modifiedOptions.RetryPolicy,
+                operationContext,
+                cancellationToken ?? CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Sets the ACL on this CloudBlockBlob.  Storage account must have hierarchical namespace enabled.
+        /// </summary>
+        /// <param name="options">A <see cref="BlobRequestOptions"/> object that specifies additional options for the request.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met in order 
+        /// for the request to proceed. If <c>null</c>, no condition is used.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="cancellationToken">A <see cref="CancellationToken"/> to observe while waiting for a task to complete.</param> 
+        [DoesServiceRequest]
+        public virtual Task SetAclAsync(
+            BlobRequestOptions options = null,
+            AccessCondition accessCondition = null,
+            OperationContext operationContext = null,
+            CancellationToken? cancellationToken = null)
+        {
+            BlobRequestOptions modifiedOptions = BlobRequestOptions.ApplyDefaults(options, BlobType.BlockBlob, this.ServiceClient);
+            return Executor.ExecuteAsync(
+                this.SetAclImp(modifiedOptions, accessCondition),
+                modifiedOptions.RetryPolicy,
+                operationContext,
+                cancellationToken ?? CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Sets the permissions on this CloudBlockBlob.  Storage account must have hierarchical namespace enabled.
+        /// </summary>
+        /// <param name="options">A <see cref="BlobRequestOptions"/> object that specifies additional options for the request.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met in order for 
+        /// the request to proceed. If <c>null</c>, no condition is used.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="cancellationToken">A <see cref="CancellationToken"/> to observe while waiting for a task to complete.</param> 
+        [DoesServiceRequest]
+        public virtual Task SetPermissionsAsync(
+            BlobRequestOptions options = null,
+            AccessCondition accessCondition = null,
+            OperationContext operationContext = null,
+            CancellationToken? cancellationToken = null)
+        {
+            BlobRequestOptions modifiedOptions = BlobRequestOptions.ApplyDefaults(options, BlobType.BlockBlob, this.ServiceClient);
+            return Executor.ExecuteAsync(
+                this.SetPermissionsImp(modifiedOptions, accessCondition),
+                modifiedOptions.RetryPolicy,
+                operationContext,
+                cancellationToken ?? CancellationToken.None);
+        }
+
+        /// <summary>
         /// Implementation for the CreateSnapshot method.
         /// </summary>
         /// <param name="metadata">A collection of name-value pairs defining the metadata of the snapshot, or null.</param>
-        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the access conditions for the blob. If <c>null</c>, no condition is used.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the access conditions for the blob. 
+        /// If <c>null</c>, no condition is used.</param>
         /// <param name="options">A <see cref="BlobRequestOptions"/> object that specifies additional options for the request.</param>
         /// <returns>A <see cref="RESTCommand"/> that creates the snapshot.</returns>
         /// <remarks>If the <c>metadata</c> parameter is <c>null</c> then no metadata is associated with the request.</remarks>
@@ -1532,6 +1637,165 @@ namespace Microsoft.Azure.Storage.Blob
             };
 
             return putCmd;
+        }
+
+        /// <summary>
+        /// Moves this CloudBlockBlob to a new location.
+        /// </summary>
+        /// <param name="destination">Location to move the CloubBlockBlob to</param>
+        /// <param name="sourceAccessCondition">An <see cref="AccessCondition"/> object that represents the conditions on the source that must be met in order for the request to proceed. If <c>null</c>, no condition is used.</param>
+        /// <param name="destAccessCondition">An <see cref="AccessCondition"/> object that represents the conditions on the destination that must be met in order for the request to proceed. If <c>null</c>, no condition is used.</param>
+        /// <param name="options">A <see cref="BlobRequestOptions"/> object that specifies additional options for the request.</param>
+        /// <param name="mode">An optional <see cref="PathRenameMode"/> object to specify rename mode</param>
+        /// <param name="umask">An optional <see cref="PathPermissions"/> object to specify umask</param>
+        /// <returns></returns>
+        private RESTCommand<NullType> MoveImp(
+            Uri destination,
+            AccessCondition sourceAccessCondition,
+            AccessCondition destAccessCondition,
+            BlobRequestOptions options,
+            PathRenameMode? mode,
+            PathPermissions umask)
+        {
+            RESTCommand<NullType> putCmd = new RESTCommand<NullType>(this.ServiceClient.Credentials, this.StorageUri, this.ServiceClient.HttpClient);
+
+            options.ApplyToStorageCommand(putCmd);
+            putCmd.BuildRequest = (cmd, uri, builder, cnt, serverTimeout, ctx) =>
+            {
+                StorageRequestMessage msg = BlobHttpRequestMessageFactory.CreatePath(
+                    uri: destination,
+                    sourceUri: this.StorageUri.PrimaryUri,
+                    timeout: serverTimeout,
+                    properties: this.Properties,
+                    pathProperties: this.PathProperties,
+                    metadata: this.Metadata,
+                    sourceAccessCondition: sourceAccessCondition,
+                    destAccessCondition: destAccessCondition,
+                    content: cnt,
+                    operationContext: ctx,
+                    canonicalizer: this.ServiceClient.GetCanonicalizer(),
+                    credentials: this.ServiceClient.Credentials,
+                    resourceType: Constants.DirectoryResource,
+                    mode: mode,
+                    umask: umask,
+                    continuation: null,
+                    move: true);
+                return msg;
+            };
+            putCmd.PreProcessResponse = (cmd, resp, ex, ctx) =>
+            {
+                HttpResponseParsers.ProcessExpectedStatusCodeNoException(HttpStatusCode.Created, resp, NullType.Value, cmd, ex);
+                CloudBlob.UpdateETagLMTLengthAndSequenceNumber(this.attributes, resp, false);
+                return NullType.Value;
+            };
+
+            return putCmd;
+        }
+
+        /// <summary>
+        /// Fetches the access controls for this CloudBlockBlob
+        /// </summary>
+        /// <param name="options">A <see cref="BlobRequestOptions"/> object that specifies additional options for the request.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met in order for the request to proceed. If <c>null</c>, no condition is used.</param>
+        /// <param name="upn">If "true", the user identity values returned in the owner, group, and acl fields will be transformed from Azure Active Directory Object IDs to User Principal Names.</param>
+        internal RESTCommand<NullType> FetchAccessControlsImp(
+            BlobRequestOptions options,
+            AccessCondition accessCondition,
+            bool? upn)
+        {
+            RESTCommand<NullType> headCmd = new RESTCommand<NullType>(this.ServiceClient.Credentials, this.StorageUri, this.ServiceClient.HttpClient);
+
+            options.ApplyToStorageCommand(headCmd);
+            headCmd.BuildRequest = (cmd, uri, builder, cnt, serverTimeout, ctx) =>
+            {
+                StorageRequestMessage msg = BlobHttpRequestMessageFactory.GetPathProperties(
+                    uri: uri,
+                    timeout: serverTimeout,
+                    accessCondition: accessCondition,
+                    operationContext: ctx,
+                    canonicalizer: this.ServiceClient.GetCanonicalizer(),
+                    credentials: this.ServiceClient.Credentials,
+                    action: Constants.GetAccessControlAction,
+                    upn: upn);
+                return msg;
+            };
+            headCmd.PreProcessResponse = (cmd, resp, ex, ctx) =>
+            {
+                HttpResponseParsers.ProcessExpectedStatusCodeNoException(HttpStatusCode.OK, resp, NullType.Value, cmd, ex);
+                CloudBlob.UpdateETagLMTLengthAndSequenceNumber(this.attributes, resp, false);
+                this.PathProperties = BlobHttpResponseParsers.ParseBlobAccessControls(resp);
+                return NullType.Value;
+            };
+
+            return headCmd;
+        }
+
+        /// <summary>
+        /// Sets the permissions on this CloudBlockBlob
+        /// </summary>
+        /// <param name="options">A <see cref="BlobRequestOptions"/> object that specifies additional options for the request.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met in order for the request to proceed. If <c>null</c>, no condition is used.</param>
+        internal RESTCommand<NullType> SetPermissionsImp(
+            BlobRequestOptions options,
+            AccessCondition accessCondition)
+        {
+            RESTCommand<NullType> patchCmd = new RESTCommand<NullType>(this.ServiceClient.Credentials, this.StorageUri, this.ServiceClient.HttpClient);
+            options.ApplyToStorageCommand(patchCmd);
+            patchCmd.BuildRequest = (cmd, uri, builder, cnt, serverTimeout, ctx) =>
+            {
+                StorageRequestMessage msg = BlobHttpRequestMessageFactory.SetPermissions(
+                    uri: uri,
+                    timeout: serverTimeout,
+                    pathAccessControls: this.PathProperties,
+                    accessCondition: accessCondition,
+                    operationContext: ctx,
+                    canonicalizer: this.ServiceClient.GetCanonicalizer(),
+                    credentials: this.ServiceClient.Credentials
+                );
+                return msg;
+            };
+            patchCmd.PreProcessResponse = (cmd, resp, ex, ctx) =>
+            {
+                HttpResponseParsers.ProcessExpectedStatusCodeNoException(HttpStatusCode.OK, resp, NullType.Value, cmd, ex);
+                CloudBlob.UpdateETagLMTLengthAndSequenceNumber(this.attributes, resp, false);
+                return NullType.Value;
+            };
+
+            return patchCmd;
+        }
+
+        /// <summary>
+        /// Sets the ACL on this CloudBlockBlob
+        /// </summary>
+        /// <param name="options">A <see cref="BlobRequestOptions"/> object that specifies additional options for the request.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met in order for the request to proceed. If <c>null</c>, no condition is used.</param>
+        internal RESTCommand<NullType> SetAclImp(
+            BlobRequestOptions options,
+            AccessCondition accessCondition)
+        {
+            RESTCommand<NullType> patchCmd = new RESTCommand<NullType>(this.ServiceClient.Credentials, this.StorageUri, this.ServiceClient.HttpClient);
+            options.ApplyToStorageCommand(patchCmd);
+            patchCmd.BuildRequest = (cmd, uri, builder, cnt, serverTimeout, ctx) =>
+            {
+                StorageRequestMessage msg = BlobHttpRequestMessageFactory.SetACL(
+                    uri: uri,
+                    timeout: serverTimeout,
+                    acl: this.PathProperties.ACL,
+                    accessCondition: accessCondition,
+                    operationContext: ctx,
+                    canonicalizer: this.ServiceClient.GetCanonicalizer(),
+                    credentials: this.ServiceClient.Credentials
+                );
+                return msg;
+            };
+            patchCmd.PreProcessResponse = (cmd, resp, ex, ctx) =>
+            {
+                HttpResponseParsers.ProcessExpectedStatusCodeNoException(HttpStatusCode.OK, resp, NullType.Value, cmd, ex);
+                CloudBlob.UpdateETagLMTLengthAndSequenceNumber(this.attributes, resp, false);
+                return NullType.Value;
+            };
+
+            return patchCmd;
         }
     }
 }

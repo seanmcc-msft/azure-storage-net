@@ -20,6 +20,7 @@ namespace Microsoft.Azure.Storage.Shared.Protocol
     using Microsoft.Azure.Storage.Core.Executor;
     using Microsoft.Azure.Storage.Core.Util;
     using System;
+    using System.Collections;
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
@@ -200,6 +201,16 @@ namespace Microsoft.Azure.Storage.Shared.Protocol
         internal static IDictionary<string, string> GetMetadata(HttpResponseMessage response)
         {
             return GetMetadataOrProperties(response, Constants.HeaderConstants.PrefixForStorageMetadata);
+        }
+
+        /// <summary>
+        /// Gets the user-deinfed properties.
+        /// </summary>
+        /// <param name="response">The response from the server.</param>
+        /// <returns></returns>
+        internal static IDictionary<string, string> GetProperties(HttpResponseMessage response)
+        {
+            return GetMetadataOrProperties(response, Constants.HeaderConstants.Properties);
         }
     }
 }

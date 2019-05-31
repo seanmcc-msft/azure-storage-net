@@ -28,6 +28,7 @@ namespace Microsoft.Azure.Storage.Blob
     using System.Threading;
     using System.Threading.Tasks;
     using System.Net;
+    using Microsoft.Azure.Storage.Common.Blob;
 
     /// <summary>
     /// Represents a blob that is uploaded as a set of blocks.
@@ -43,6 +44,12 @@ namespace Microsoft.Azure.Storage.Blob
         /// Flag to determine if the block size was modified.
         /// </summary>
         private bool isStreamWriteSizeModified = false;
+
+        /// <summary>
+        /// Path properties.
+        /// </summary>
+        public BlobPathAccessControls PathProperties { get; internal set; }
+
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CloudBlockBlob"/> class using an absolute URI to the blob.
@@ -117,6 +124,7 @@ namespace Microsoft.Azure.Storage.Blob
             : base(blobAbsoluteUri, snapshotTime, client)
         {
             this.Properties.BlobType = BlobType.BlockBlob;
+            this.PathProperties = new BlobPathAccessControls();
         }
 
         /// <summary>
@@ -131,6 +139,7 @@ namespace Microsoft.Azure.Storage.Blob
             : base(blobName, snapshotTime, container)
         {
             this.Properties.BlobType = BlobType.BlockBlob;
+            this.PathProperties = new BlobPathAccessControls();
         }
 
         /// <summary>
@@ -142,6 +151,7 @@ namespace Microsoft.Azure.Storage.Blob
             : base(attributes, serviceClient)
         {
             this.Properties.BlobType = BlobType.BlockBlob;
+            this.PathProperties = new BlobPathAccessControls();
         }
 
         /// <summary>

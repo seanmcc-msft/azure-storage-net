@@ -18,15 +18,19 @@
 namespace Microsoft.Azure.Storage.Blob.Protocol
 {
     using Microsoft.Azure.Storage.Auth;
+    using Microsoft.Azure.Storage.Common.Blob;
     using Microsoft.Azure.Storage.Core;
     using Microsoft.Azure.Storage.Core.Auth;
     using Microsoft.Azure.Storage.Core.Util;
     using Microsoft.Azure.Storage.Shared.Protocol;
     using System;
+    using System.Collections;
     using System.Collections.Generic;
     using System.Globalization;
+    using System.IO;
     using System.Net.Http;
     using System.Net.Http.Headers;
+    using System.Text;
 
     internal static class BlobHttpRequestMessageFactory
     {
@@ -1138,6 +1142,401 @@ namespace Microsoft.Azure.Storage.Blob.Protocol
 
             StorageRequestMessage request = HttpRequestMessageFactory.CreateRequestMessage(HttpMethod.Put, uri, timeout, builder, content, operationContext, canonicalizer, credentials);
             request.Headers.Add(Constants.HeaderConstants.AccessTierHeader, blobTier);
+
+            return request;
+        }
+
+        /// <summary>
+        /// Constucts a web request to create or move an ADLS Gen 2 path
+        /// </summary>
+        /// <param name="uri">The absolute URI to the path.</param>
+        /// <param name="sourceUri">The absolute URI of the source path.  Used if this is a move operation</param>
+        /// <param name="timeout">The server timeout interval.</param>
+        /// <param name="properties">The paths's <see cref="BlobProperties"/>.</param>
+        /// <param name="pathProperties">The path's <see cref="BlobPathAccessControls"/></param>
+        /// <param name="metadata">The path's metadata</param>
+        /// <param name="sourceAccessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met on the source object in order for the request to proceed.</param>
+        /// <param name="destAccessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met on the destination object in order for the request to proceed.</param>
+        /// <param name="content">The HTTP entity body and content headers.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="canonicalizer">A canonicalizer that converts HTTP request data into a standard form appropriate for signing.</param>
+        /// <param name="credentials">A <see cref="StorageCredentials"/> object providing credentials for the request.</param>
+        /// <param name="resourceType">"file" or "directory"</param>
+        /// <param name="mode">An optional <see cref="PathRenameMode"/> object to specify rename mode</param>
+        /// <param name="umask">An optional <see cref="PathPermissions"/> object to specify umask</param>
+        /// <param name="continuation">Continuation token, used it this is a large move operation</param>
+        /// <param name="move">If set to true, this is a move operation</param>
+        /// <returns><see cref="StorageRequestMessage"/></returns>
+        public static StorageRequestMessage CreatePath(
+            Uri uri, 
+            Uri sourceUri, 
+            int? timeout, 
+            BlobProperties properties,
+            BlobPathAccessControls pathProperties,
+            IDictionary<string, string> metadata,
+            AccessCondition sourceAccessCondition, 
+            AccessCondition destAccessCondition, 
+            HttpContent content, 
+            OperationContext operationContext, 
+            ICanonicalizer canonicalizer, 
+            StorageCredentials credentials, 
+            string resourceType,
+            PathRenameMode? mode,
+            PathPermissions umask, 
+            string continuation,
+            bool move)
+        {
+            CommonUtility.AssertNotNull("properties", properties);
+
+            // Add Resource, Continuation, and Mode URI parameters
+            UriQueryBuilder uriQueryBuilder = new UriQueryBuilder();
+
+            if(!move)
+            {
+                uriQueryBuilder.Add(Constants.Resource, resourceType);
+            }
+
+            if (continuation != null)
+            {
+                uriQueryBuilder.Add(Constants.Continuation, continuation);
+            }
+
+            if (mode != null)
+            {
+                uriQueryBuilder.Add(Constants.Mode, mode.ToString());
+            }
+
+
+            StorageRequestMessage request = HttpRequestMessageFactory.Create(
+                BlobRequest.SwapDfsEndpoint(uri), timeout, uriQueryBuilder, content, operationContext, canonicalizer, credentials);
+
+            request.ApplyAccessConditionToSource(sourceAccessCondition);
+            request.ApplyAccessCondition(destAccessCondition);
+
+            if(pathProperties?.Permissions != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.Permissions, pathProperties.Permissions.ToOctalString());
+            }
+
+            request.AddOptionalHeader(Constants.HeaderConstants.RenameSource, BlobRequest.RemoveTrailingDelimiter(sourceUri)?.PathAndQuery);
+
+            if(umask != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.Umask, umask.ToOctalString());
+            }
+
+
+            if(metadata != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.Properties, BlobRequest.MetadataAsPathProperties(metadata));
+            }
+
+            // Note: we are using the File version of these headers by design.
+            if (properties.CacheControl != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.FileCacheControlHeader, properties.CacheControl);
+            }
+
+            if(properties.ContentEncoding != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.FileContentEncodingHeader, properties.ContentEncoding);
+            }
+
+            if(properties.ContentLanguage != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.FileContentLanguageHeader, properties.ContentLanguage);
+            }
+
+            if(properties.ContentDisposition != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.FileContentDispositionRequestHeader, properties.ContentDisposition);
+            }
+
+            return request;
+        }
+
+        /// <summary>
+        /// Constructs a web request to delete an ADLS Gen 2 path
+        /// </summary>
+        /// <param name="uri">The absolute URI to the path.</param>
+        /// <param name="timeout">The server timeout interval.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met on the path in order for the request to proceed.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="canonicalizer">A canonicalizer that converts HTTP request data into a standard form appropriate for signing.</param>
+        /// <param name="credentials">A <see cref="StorageCredentials"/> object providing credentials for the request.</param>
+        /// <param name="recursive">valid only when the resource is a directory.  If true, all paths beneath the directory will be deleted. If "false" and the directory is non-empty, an error occurs.</param>
+        /// <param name="continuation">Continuation token, used to continue large delete operations.</param>
+        /// <returns><see cref="StorageRequestMessage"/></returns>
+        public static StorageRequestMessage DeletePath(
+            Uri uri, 
+            int? timeout, 
+            AccessCondition accessCondition, 
+            OperationContext operationContext,
+            ICanonicalizer canonicalizer, 
+            StorageCredentials credentials,
+            bool? recursive, 
+            string continuation)
+        {
+            UriQueryBuilder uriQueryBuilder = new UriQueryBuilder();
+
+            if(recursive != null)
+            {
+                uriQueryBuilder.Add(Constants.Recursive, recursive.ToString().ToLowerInvariant());
+            }
+
+            if (continuation != null)
+            {
+                uriQueryBuilder.Add(Constants.Continuation, continuation);
+            }
+
+            StorageRequestMessage request = HttpRequestMessageFactory.Delete(BlobRequest.SwapDfsEndpoint(uri), timeout, uriQueryBuilder, null, operationContext, canonicalizer, credentials);
+            request.ApplyAccessCondition(accessCondition);
+
+            return request;
+        }
+
+        /// <summary>
+        /// Constructs a web request to fetch the path properties of a ADLS Gen 2 path.
+        /// </summary>
+        /// <param name="uri">The absolute URI to the path.</param>
+        /// <param name="timeout">The server timeout interval.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met on the path in order for the request to proceed.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="canonicalizer">A canonicalizer that converts HTTP request data into a standard form appropriate for signing.</param>
+        /// <param name="credentials">A <see cref="StorageCredentials"/> object providing credentials for the request.</param>
+        /// <param name="action">Optional. If the value is "getStatus" only the system defined properties for the path are returned. If the value is "getAccessControl" the access control list is returned.</param>
+        /// <param name="upn">Optional. Valid only when Hierarchical Namespace is enabled for the account. If "true", the user identity values returned in the x-ms-owner, x-ms-group, and x-ms-acl response headers will be transformed from Azure Active Directory Object IDs to User Principal Names.</param>
+        /// <returns><see cref="StorageRequestMessage"/></returns>
+        public static StorageRequestMessage GetPathProperties(
+            Uri uri,
+            int? timeout,
+            AccessCondition accessCondition,
+            OperationContext operationContext,
+            ICanonicalizer canonicalizer,
+            StorageCredentials credentials,
+            string action,
+            bool? upn)
+        {
+            UriQueryBuilder uriQueryBuilder = new UriQueryBuilder();
+
+            if(action != null)
+            {
+                uriQueryBuilder.Add(Constants.Action, action);
+            }
+
+            if(upn.HasValue)
+            {
+                // TODO bool.ToString() might not work
+                uriQueryBuilder.Add(Constants.Upn, upn.Value.ToString());
+            }
+
+            StorageRequestMessage request = HttpRequestMessageFactory.CreateRequestMessage(
+                HttpMethod.Head, BlobRequest.SwapDfsEndpoint(uri), timeout, uriQueryBuilder, null, operationContext, canonicalizer, credentials);
+
+            request.ApplyAccessCondition(accessCondition);
+
+            return request;
+        }
+
+        /// <summary>
+        /// Constructs a web request to set permissions on a path.
+        /// </summary>
+        /// <param name="uri">The absolute URI to the path.</param>
+        /// <param name="timeout">The server timeout interval.</param>
+        /// <param name="pathAccessControls">The path's <see cref="PathPermissions"/> object</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met on the path in order for the request to proceed.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="canonicalizer">A canonicalizer that converts HTTP request data into a standard form appropriate for signing.</param>
+        /// <param name="credentials">A <see cref="StorageCredentials"/> object providing credentials for the request.</param>
+        /// <returns><see cref="StorageRequestMessage"/></returns>
+        public static StorageRequestMessage SetPermissions(
+            Uri uri,
+            int? timeout,
+            BlobPathAccessControls pathAccessControls,
+            AccessCondition accessCondition,
+            OperationContext operationContext,
+            ICanonicalizer canonicalizer,
+            StorageCredentials credentials)
+        {
+            return UpdatePath(
+                uri: uri,
+                timeout: timeout,
+                properties: null,
+                permissions: pathAccessControls.Permissions,
+                acl: null,
+                owner: pathAccessControls.Owner,
+                group: pathAccessControls.Group,
+                metadata: null,
+                accessCondition: accessCondition,
+                operationContext: operationContext,
+                canonicalizer: canonicalizer,
+                credentials: credentials,
+                action: Constants.SetAccessControlAction,
+                position: null,
+                retainUncommitedData: null,
+                close: null);
+        }
+
+        /// <summary>
+        /// Constructs a web request to set the ACL on a path.
+        /// </summary>
+        /// <param name="uri">The absolute URI to the path.</param>
+        /// <param name="timeout">The server timeout interval.</param>
+        /// <param name="acl">The new ACL.</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met on the path in order for the request to proceed.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="canonicalizer">A canonicalizer that converts HTTP request data into a standard form appropriate for signing.</param>
+        /// <param name="credentials">A <see cref="StorageCredentials"/> object providing credentials for the request.</param>
+        /// <returns><see cref="StorageRequestMessage"/></returns>
+        public static StorageRequestMessage SetACL(
+            Uri uri,
+            int? timeout,
+            IList<PathAccessControlEntry> acl,
+            AccessCondition accessCondition,
+            OperationContext operationContext,
+            ICanonicalizer canonicalizer,
+            StorageCredentials credentials)
+        {
+            return UpdatePath(
+                uri: uri,
+                timeout: timeout,
+                properties: null,
+                permissions: null,
+                acl: acl,
+                owner: null,
+                group: null,
+                metadata: null,
+                accessCondition: accessCondition,
+                operationContext: operationContext,
+                canonicalizer: canonicalizer,
+                credentials: credentials,
+                action: Constants.SetAccessControlAction,
+                position: null,
+                retainUncommitedData: null, 
+                close: null);
+        }
+
+        /// <summary>
+        /// Constructs a web request to update a path.
+        /// </summary>
+        /// <param name="uri">The absolute URI to the path.</param>
+        /// <param name="timeout">The server timeout interval.</param>
+        /// <param name="properties">The path's <see cref="BlobProperties"/></param>
+        /// <param name="permissions">The path's <see cref="PathPermissions"/></param>
+        /// <param name="acl">The path's ACL.</param>
+        /// <param name="owner">The path's owner.</param>
+        /// <param name="group">The path's group.</param>
+        /// <param name="metadata">The path's metadata</param>
+        /// <param name="accessCondition">An <see cref="AccessCondition"/> object that represents the condition that must be met on the path in order for the request to proceed.</param>
+        /// <param name="operationContext">An <see cref="OperationContext"/> object that represents the context for the current operation.</param>
+        /// <param name="canonicalizer">A canonicalizer that converts HTTP request data into a standard form appropriate for signing.</param>
+        /// <param name="credentials">A <see cref="StorageCredentials"/> object providing credentials for the request.</param>
+        /// <param name="action">The action must be "append" to upload data to be appended to a file, "flush" to flush previously uploaded data to a file, "setProperties" to set the properties of a file or directory, or "setAccessControl" to set the owner, group, permissions, or access control list for a path.</param>
+        /// <param name="position">This parameter allows the caller to upload data in parallel and control the order in which it is appended to the file. </param>
+        /// <param name="retainUncommitedData">Valid only for flush operations. If "true", uncommitted data is retained after the flush operation completes; otherwise, the uncommitted data is deleted after the flush operation. The default is false. </param>
+        /// <param name="close">Azure Storage Events allow applications to receive notifications when files change. When Azure Storage Events are enabled, a file changed event is raised. This event has a property indicating whether this is the final change to distinguish the difference between an intermediate flush to a file stream and the final close of a file stream. </param>
+        /// <returns><see cref="StorageRequestMessage"/></returns>
+        public static StorageRequestMessage UpdatePath(
+            Uri uri, 
+            int? timeout, 
+            BlobProperties properties,
+            PathPermissions permissions,
+            IList<PathAccessControlEntry> acl,
+            string owner,
+            string group,
+            IDictionary<string, string> metadata, 
+            AccessCondition accessCondition,
+            OperationContext operationContext,
+            ICanonicalizer canonicalizer, 
+            StorageCredentials credentials, 
+            string action, 
+            long? position, 
+            bool? retainUncommitedData,
+            bool? close)
+        {
+            UriQueryBuilder uriQueryBuilder = new UriQueryBuilder();
+            uriQueryBuilder.Add(Constants.Action, action);
+
+            if (position.HasValue)
+            {
+                uriQueryBuilder.Add(Constants.Position, position.Value.ToString());
+            }
+
+            if (retainUncommitedData.HasValue)
+            {
+                uriQueryBuilder.Add(Constants.RetainUncommittedData, retainUncommitedData.Value.ToString());
+            }
+
+            if (close.HasValue)
+            {
+                uriQueryBuilder.Add(Constants.Close, close.Value.ToString());
+            }
+
+            StorageRequestMessage request = HttpRequestMessageFactory.CreateRequestMessage(
+                new HttpMethod("PATCH"), BlobRequest.SwapDfsEndpoint(uri), timeout, uriQueryBuilder, null, operationContext, canonicalizer, credentials);
+
+            request.ApplyAccessCondition(accessCondition);
+
+            if (metadata != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.Properties, BlobRequest.MetadataAsPathProperties(metadata));
+            }
+
+            // Note: we are using the File version of these headers by design.
+            if (properties?.Length != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.ContentLengthHeader, properties.Length);
+            }
+
+            if (properties?.ContentMD5 != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.ContentMD5Header, properties.ContentMD5);
+            }
+
+            if (properties?.CacheControl != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.FileCacheControlHeader, properties.CacheControl);
+            }
+
+            if (properties?.ContentType != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.FileContentTypeHeader, properties.ContentType);
+            }
+
+            if (properties?.ContentDisposition != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.FileContentDispositionRequestHeader, properties.ContentDisposition);
+            }
+
+            if (properties?.ContentEncoding != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.FileContentEncodingHeader, properties.ContentEncoding);
+            }
+
+            if (properties?.ContentLanguage != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.FileContentLanguageHeader, properties.ContentLanguage);
+            }
+
+            if (owner != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.Owner, owner);
+            }
+
+            if (group != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.Group, group);
+            }
+
+            if (permissions != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.Permissions, permissions.ToSymbolicString());
+            }
+
+            if (acl != null)
+            {
+                request.AddOptionalHeader(Constants.HeaderConstants.ACL, PathAccessControlEntry.SerializeList(acl));
+            }
 
             return request;
         }
